@@ -1,5 +1,3 @@
-// frontend/src/types/simulation.d.ts
-
 export interface SimulationData {
     velocity: number;
     angle: number;
