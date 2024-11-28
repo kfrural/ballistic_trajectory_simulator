@@ -1,0 +1,9 @@
+{
+  "devDependencies": {
+    "@types/react-chartjs-2": "^2.0.2"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.6",
+    "react-chartjs-2": "^5.2.0"
+  }
+}

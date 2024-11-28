@@ -10,11 +10,13 @@ const App: React.FC = () => {
     const handleSimulation = async (inputs: SimulationData) => {
         try {
             const response = await axios.post('http://127.0.0.1:5000/simulate', inputs);
+            console.log(response.data);  // Verifique os dados no console
             setGraphData(response.data);
         } catch (error) {
             console.error('Erro ao simular:', error);
         }
     };
+    
 
     return (
         <div>
