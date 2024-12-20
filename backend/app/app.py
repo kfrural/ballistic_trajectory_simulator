@@ -1,31 +1,30 @@
-# backend/app.py
-from flask import Flask, request, jsonify
-from flask_cors import CORS  # Para lidar com CORS
-import math
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
-CORS(app)  # Permite requisições de qualquer origem
+
+@app.route('/')
+def index():
+    return "API do Simulador está funcionando! Acesse a rota '/simulate' para simular."
 
 @app.route('/simulate', methods=['POST'])
 def simulate():
     data = request.json
-    v0 = data['velocity']
-    angle = math.radians(data['angle'])  # Converte o ângulo para radianos
-    g = 9.8  # Gravidade (m/s²)
+    # Simulação do cálculo baseado nos dados fornecidos
+    velocity = data.get('velocity')
+    angle = data.get('angle')
+    air_resistance = data.get('airResistance', 0)  # Valor padrão se não for fornecido
 
-    # Cálculos para a trajetória
-    positions = []
-    t = 0
-    while True:
-        x = v0 * math.cos(angle) * t
-        y = v0 * math.sin(angle) * t - 0.5 * g * t**2
-        if y < 0:
-            break
-        positions.append({'x': x, 'y': y})
-        t += 0.1  # Intervalo de tempo para o próximo ponto
+    # Exemplo de retorno com dados fictícios
+    response = {
+        "positions": [{"x": 0, "y": 0}, {"x": 10, "y": 5}, {"x": 20, "y": 0}],
+        "time": [0, 1, 2],
+    }
+    return jsonify(response)
 
-    # Retorna os resultados da simulação
-    return jsonify({'positions': positions, 'time': [i * 0.1 for i in range(len(positions))]})
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204  # Responde com "Sem conteúdo"
 
-if __name__ == '__main__':
+# Adicione o bloco main
+if __name__ == "__main__":
     app.run(debug=True)
