@@ -1,0 +1,146 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ballistic_sim
+      POSTGRES_USER: ballistic
+      POSTGRES_PASSWORD: ballistic_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ballistic"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  airflow-webserver:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    command: webserver
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://ballistic:ballistic_secret@postgres:5432/ballistic_sim
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql+psycopg2://ballistic:ballistic_secret@postgres:5432/ballistic_sim
+      AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+      AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__WEBSERVER__WEB_PACKAGE_NAME: apache-airflow
+      DATABASE_URL: postgresql://ballistic:ballistic_secret@postgres:5432/ballistic_sim
+      REDIS_URL: redis://:@redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    command: scheduler
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://ballistic:ballistic_secret@postgres:5432/ballistic_sim
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql+psycopg2://ballistic:ballistic_secret@postgres:5432/ballistic_sim
+      AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+      DATABASE_URL: postgresql://ballistic:ballistic_secret@postgres:5432/ballistic_sim
+      REDIS_URL: redis://:@redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+
+  airflow-triggerer:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    command: triggerer
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://ballistic:ballistic_secret@postgres:5432/ballistic_sim
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql+psycopg2://ballistic:ballistic_secret@postgres:5432/ballistic_sim
+      AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+
+  airflow-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    command: celery worker
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://ballistic:ballistic_secret@postgres:5432/ballistic_sim
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql+psycopg2://ballistic:ballistic_secret@postgres:5432/ballistic_sim
+      AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+
+  fastapi:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://ballistic:ballistic_secret@postgres:5432/ballistic_sim
+      REDIS_URL: redis://:@redis:6379/0
+      OPENWEATHERMAP_API_KEY: ${OPENWEATHERMAP_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./src:/app/src
+
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    command: celery flower
+    ports:
+      - "5555:5555"
+    environment:
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql+psycopg2://ballistic:ballistic_secret@postgres:5432/ballistic_sim
+      AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    depends_on:
+      - redis
+      - airflow-worker
+
+volumes:
+  postgres_data:

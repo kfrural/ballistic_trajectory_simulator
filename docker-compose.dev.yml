@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ballistic_sim
+      POSTGRES_USER: ballistic
+      POSTGRES_PASSWORD: ballistic_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  fastapi:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://ballistic:ballistic_secret@postgres:5432/ballistic_sim
+      REDIS_URL: redis://:@redis:6379/0
+      OPENWEATHERMAP_API_KEY: ${OPENWEATHERMAP_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./src:/app/src
+
+  frontend:
+    working_dir: /app
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://fastapi:8000
+    depends_on:
+      - fastapi
+    volumes:
+      - ./frontend/src:/app/src
+
+  flower:
+    image: mher/flower:latest
+    ports:
+      - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: redis://:@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:@redis:6379/0
+    depends_on:
+      - redis
+
+volumes:
+  postgres_data:
