@@ -1,0 +1,29 @@
+FROM python:3.10-slim
+
+SHELL ["/bin/bash", "-e"]
+
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV AIRFLOW_VERSION=2.7.0
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+
+WORKDIR /opt/airflow
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+RUN useradd -m -u 1000 airflow
+
+COPY --chown=airflow:airflow . .
+
+USER airflow
+
+EXPOSE 8080
+
+CMD ["webserver"]
